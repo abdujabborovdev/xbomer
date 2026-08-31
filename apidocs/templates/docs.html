@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ active.title }} · {{ brand }} API Docs</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: {
+            50: '#f1f0ff', 100: '#e4e1ff', 500: '#635bff',
+            600: '#5851e0', 700: '#4740b8'
+          }
+        }
+      }
+    }
+  }
+</script>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body class="bg-white text-slate-900 antialiased">
+
+  <div class="flex min-h-screen">
+
+    <!-- ============ SIDEBAR ============ -->
+    <aside class="w-72 shrink-0 border-r border-slate-100 flex flex-col h-screen sticky top-0">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+        <a href="/" class="flex items-center gap-2">
+          <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
+            <span class="text-white font-bold text-xs">X</span>
+          </div>
+          <span class="font-semibold tracking-tight">{{ brand }} docs</span>
+        </a>
+      </div>
+
+      <!-- Search -->
+      <div class="px-4 pt-4">
+        <div class="relative">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="sidebar-search" type="text" placeholder="Qidirish..."
+            class="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400">
+        </div>
+      </div>
+
+      <!-- Base URL -->
+      <div class="mx-4 mt-4 rounded-lg bg-slate-50 border border-slate-200 p-3">
+        <div class="text-[11px] uppercase tracking-wide text-slate-400 font-semibold mb-1">Base URL</div>
+        <div class="flex items-center justify-between gap-2">
+          <code class="text-[12.5px] text-slate-700 font-mono truncate">{{ base_url }}</code>
+          <button class="copy-static-btn shrink-0 text-slate-400 hover:text-brand-600" data-copy="{{ base_url }}" title="Nusxalash">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Nav -->
+      <nav id="sidebar-nav" class="flex-1 overflow-y-auto px-3 mt-5 pb-6">
+        {% set ns = namespace(last_group="") %}
+        {% for ep in endpoints %}
+          {% if ep.group != ns.last_group %}
+            <div class="px-2 mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 nav-group-label">{{ ep.group }}</div>
+            {% set ns.last_group = ep.group %}
+          {% endif %}
+          <a href="/docs?section={{ ep.id }}"
+             data-label="{{ ep.title|lower }}"
+             class="nav-link group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm mb-0.5 {% if ep.id == active.id %}nav-link-active{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900{% endif %}">
+            {% if ep.method %}
+              <span class="method-tag method-{{ ep.method|lower }}">{{ ep.method }}</span>
+            {% else %}
+              <span class="w-9 h-4 rounded flex items-center justify-center text-slate-300">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              </span>
+            {% endif %}
+            <span class="truncate">{{ ep.title }}</span>
+          </a>
+        {% endfor %}
+      </nav>
+    </aside>
+
+    <!-- ============ MAIN CONTENT (bitta ustun, kod bloklari ham shu yerda) ============ -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="max-w-3xl mx-auto px-10 py-12">
+
+        <div class="text-xs font-medium text-brand-600 uppercase tracking-wide mb-2">{{ active.group }}</div>
+        <div class="flex items-center gap-3 flex-wrap">
+          {% if active.method %}
+            <span class="method-badge method-badge-{{ active.method|lower }}">{{ active.method }}</span>
+            <code class="text-[15px] font-mono text-slate-700">{{ active.path }}</code>
+          {% endif %}
+        </div>
+        <h1 class="text-3xl font-bold tracking-tight mt-3">{{ active.title }}</h1>
+        <p class="mt-4 text-slate-600 leading-relaxed">{{ active.description }}</p>
+
+        {% if active.params %}
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">Parametrlar</h2>
+        <div class="rounded-xl border border-slate-100 divide-y divide-slate-100 overflow-hidden">
+          {% for p in active.params %}
+          <div class="p-4 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-6">
+            <div class="w-40 shrink-0">
+              <code class="text-[13px] font-mono font-semibold text-slate-800">{{ p.name }}</code>
+              <div class="text-[11px] text-slate-400 mt-0.5">
+                {{ p.type }}
+                {% if p.required %}<span class="text-rose-500 font-medium">· majburiy</span>{% else %}<span>· ixtiyoriy</span>{% endif %}
+              </div>
+            </div>
+            <p class="text-sm text-slate-600 leading-relaxed">{{ p.desc }}</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {% if active.code %}
+        <!-- ---------- Kod namunalari (tabs) ---------- -->
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">So'rov namunasi</h2>
+
+        <div class="flex items-center gap-1 bg-[#161a22] rounded-t-xl p-1 w-fit">
+          <button class="lang-tab active" data-lang="curl">cURL</button>
+          <button class="lang-tab" data-lang="php">PHP</button>
+          <button class="lang-tab" data-lang="python">Python</button>
+        </div>
+
+        <div class="code-window rounded-tl-none mb-8">
+          <div class="code-window-header">
+            <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
+            <span class="code-window-title" id="req-lang-label">cURL &middot; So'rov</span>
+            <button class="copy-btn" data-target="code-request">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <pre class="code-window-body" id="code-request"><code>{{ active.code.curl }}</code></pre>
+        </div>
+
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mb-4">Namuna javob</h2>
+        <div class="code-window">
+          <div class="code-window-header">
+            <span class="response-status">200 OK</span>
+            <span class="code-window-title">JSON</span>
+            <button class="copy-btn" data-target="code-response">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+              <span>Copy</span>
+            </button>
+          </div>
+          <pre class="code-window-body" id="code-response"><code id="json-response">{{ active.response | tojson(indent=2) }}</code></pre>
+        </div>
+        {% endif %}
+
+      </div>
+    </main>
+  </div>
+
+  <!-- data island: har bir tildagi kod shu yerda JS uchun saqlanadi -->
+  <script id="lang-data" type="application/json">
+    {
+      "curl": {{ active.code.curl | tojson if active.code else "\"\"" }},
+      "php": {{ active.code.php | tojson if active.code else "\"\"" }},
+      "python": {{ active.code.python | tojson if active.code else "\"\"" }}
+    }
+  </script>
+
+  <script src="/static/js/script.js"></script>
+</body>
+</html>

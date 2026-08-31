@@ -1,0 +1,153 @@
+/* ==========================================================================
+/* ==========================================================================
+   PayFlow API Docs — custom styles (on top of Tailwind utility classes)
+   ========================================================================== */
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+}
+
+code, pre, .font-mono {
+  font-family: "SFMono-Regular", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+/* ---------- Sidebar nav ---------- */
+.nav-group-label:first-child { margin-top: 0; }
+
+.nav-link-active {
+  background: #f1f0ff;
+  color: #4740b8;
+  font-weight: 600;
+}
+
+.nav-link.hidden-by-search { display: none !important; }
+
+/* Small method tag shown in the sidebar list */
+.method-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 17px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  font-family: ui-monospace, monospace;
+}
+.method-get  { background: #e6f4ea; color: #1e7d3c; }
+.method-post { background: #e6edff; color: #2547d0; }
+.method-put  { background: #fff4e0; color: #b5760a; }
+.method-delete { background: #fde8e8; color: #c2280f; }
+
+/* Bigger method badge shown at the top of the content column */
+.method-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  font-family: ui-monospace, monospace;
+}
+.method-badge-get  { background: #e6f4ea; color: #1e7d3c; }
+.method-badge-post { background: #e6edff; color: #2547d0; }
+.method-badge-put  { background: #fff4e0; color: #b5760a; }
+.method-badge-delete { background: #fde8e8; color: #c2280f; }
+
+/* ---------- Language tabs (cURL / PHP / Python) ---------- */
+.lang-tab {
+  padding: 6px 14px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #8b93a7;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.lang-tab:hover { color: #d7dae2; }
+.lang-tab.active {
+  background: #2a2f3a;
+  color: #f5f6f8;
+}
+
+/* ---------- Code windows (terminal-like) ---------- */
+.code-window {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #1c212b;
+  background: #0d1017;
+}
+
+/* Tabs to'g'ridan-to'g'ri kod oynasi ustida bo'lganda, yuqori chap burchakni tekislaymiz */
+.code-window.rounded-tl-none {
+  border-top-left-radius: 0;
+}
+
+.code-window-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 12px;
+  background: #12151d;
+  border-bottom: 1px solid #1c212b;
+}
+
+.dot { width: 9px; height: 9px; border-radius: 50%; }
+.dot-red { background: #ff5f57; }
+.dot-yellow { background: #febc2e; }
+.dot-green { background: #28c840; }
+
+.code-window-title {
+  margin-left: 6px;
+  font-size: 11.5px;
+  color: #6b7280;
+  flex: 1;
+}
+
+.response-status {
+  font-size: 11px;
+  font-weight: 700;
+  color: #34d399;
+  background: rgba(52, 211, 153, 0.12);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: ui-monospace, monospace;
+}
+
+.copy-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: #8b93a7;
+  background: transparent;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+.copy-btn:hover { background: #1c212b; color: #e5e7eb; }
+.copy-btn.copied { color: #34d399; }
+
+.code-window-body {
+  padding: 16px 18px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+  color: #d3d7de;
+  white-space: pre;
+}
+
+.copy-static-btn { transition: color 0.15s ease; }
+
+/* ---------- Basic syntax-highlight token colors ---------- */
+.tok-kw   { color: #ff7ab8; }   /* keywords: import, print, function ... */
+.tok-str  { color: #a6e22e; }   /* strings */
+.tok-num  { color: #ae81ff; }   /* numbers */
+.tok-com  { color: #6b7280; font-style: italic; } /* comments */
+.tok-key  { color: #79c0ff; }   /* JSON keys */
+
+/* scrollbars for code panel */
+aside::-webkit-scrollbar, .code-window-body::-webkit-scrollbar { width: 8px; height: 8px; }
+aside::-webkit-scrollbar-thumb { background: #1e2430; border-radius: 8px; }
+aside::-webkit-scrollbar-track { background: transparent; }
