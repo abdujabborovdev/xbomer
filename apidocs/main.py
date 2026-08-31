@@ -4,8 +4,8 @@ import json
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, DictLoader, select_autoescape
-
-BRAND = "XBOMER"
+from api.v1 import router as v1_router
+BRAND = "xbomer.uz"
 BASE_URL = "https://xbomer.uz/api/v1"
 
 LANGUAGES = [
@@ -18,6 +18,9 @@ LANGUAGES = [
 ]
 
 
+# ============================================================================
+# 2) HAR BIR TIL UCHUN KOD NAMUNASINI AVTOMATIK YASOVCHI FUNKSIYALAR
+# ============================================================================
 
 def _curl_snippet(url: str, payload: dict) -> str:
     body = json.dumps(payload, indent=4, ensure_ascii=False)
@@ -137,7 +140,6 @@ def _java_snippet(url: str, payload: dict) -> str:
 
 
 def build_code_samples(url: str, payload: dict) -> dict:
-    """Berilgan url + JSON payload asosida barcha tillardagi kod namunalarini qaytaradi."""
     return {
         "curl": _curl_snippet(url, payload),
         "php": _php_snippet(url, payload),
@@ -150,9 +152,12 @@ def build_code_samples(url: str, payload: dict) -> dict:
 
 # ============================================================================
 # 3) ENDPOINTLAR RO'YXATI
+#    Har bir endpoint uchun ikkita namuna javob saqlanadi:
+#    - response        -> muvaffaqiyatli (200 OK) javob
+#    - error_example   -> xato holatidagi javob (status matni + JSON tanasi)
 # ============================================================================
 
-def _ep(id_, group, title, method, path, description, params, payload, response):
+def _ep(id_, group, title, method, path, description, params, payload, response, error_status, error_body):
     url = f"{BASE_URL.rsplit('/api/v1', 1)[0]}{path}" if path.startswith("/api") else BASE_URL
     return {
         "id": id_,
@@ -164,6 +169,8 @@ def _ep(id_, group, title, method, path, description, params, payload, response)
         "description": description,
         "params": params,
         "response": response,
+        "error_status": error_status,
+        "error_body": error_body,
         "code": build_code_samples(url, payload),
     }
 
@@ -179,6 +186,8 @@ ENDPOINTS = [
         ],
         {"key": "YOUR_API_KEY"},
         {"status": True, "message": "✅ API ishlamoqda"},
+        "401 Unauthorized",
+        {"status": False, "message": "API kalit noto'g'ri yoki bloklangan", "error_code": "INVALID_API_KEY"},
     ),
     _ep(
         "balance", "Endpointlar", "Balans", "POST", "/api/v1/balance",
@@ -190,10 +199,12 @@ ENDPOINTS = [
         ],
         {"key": "YOUR_API_KEY", "action": "balance"},
         {"balance": 10000, "currency": "UZS"},
+        "401 Unauthorized",
+        {"status": False, "message": "API kalit noto'g'ri yoki bloklangan", "error_code": "INVALID_API_KEY"},
     ),
     _ep(
         "nomer-olish", "Raqamlar", "Nomer olish", "POST", "/api/v1/accounts_get",
-        "Tanlangan davlat uchun SMS qabul qilishga tayyor yangi vaqtinchalik raqam "
+        "Tanlangan davlat uchun SMS qabul qilishga tayyor yangi raqam "
         "sotib oladi. Qaytgan `id` qiymatini keyinchalik kodni olish uchun ishlating.",
         [
             {"name": "key", "type": "string", "required": True, "desc": "Sizning API kalitingiz"},
@@ -202,6 +213,8 @@ ENDPOINTS = [
         ],
         {"key": "YOUR_API_KEY", "action": "accounts_get", "country": "US"},
         {"id": 7890, "number": "12025550123", "country": "US"},
+        "404 Not Found",
+        {"status": False, "message": "Hozircha bo'sh raqam yo'q", "error_code": "NUMBER_NOT_AVAILABLE"},
     ),
     _ep(
         "kod-olish", "Raqamlar", "Kod olish", "POST", "/api/v1/accounts_code",
@@ -214,15 +227,16 @@ ENDPOINTS = [
         ],
         {"key": "YOUR_API_KEY", "action": "accounts_code", "order_id": 1231},
         {"id": 7890, "status": "OK", "code": "33450", "password": "h1i4b92"},
+        "404 Not Found",
+        {"status": False, "message": "'order_id' bo'yicha buyurtma topilmadi", "error_code": "ORDER_NOT_FOUND"},
     ),
 ]
 
 # ---------------------------------------------------------------------------
-# "Xato kodlari" — bu oddiy endpoint emas, shuning uchun alohida "errors" turi
-# bilan qo'shiladi (kod tab/tablari emas, xatolar jadvali ko'rsatiladi).
+# "Xato kodlari" — oddiy endpoint emas, alohida "errors" turi bilan qo'shiladi
 # ---------------------------------------------------------------------------
 ERROR_CODES = [
-    ("MISSING_API_KEY", 401, "API kaliti ('key') yuborilmadi"),
+    ("MISSING_API_KEY", 400, "API kaliti ('key') yuborilmadi"),
     ("INVALID_API_KEY", 401, "API kalit noto'g'ri yoki bloklangan"),
     ("MISSING_ACTION", 400, "'action' parametri topilmadi"),
     ("INVALID_ACTION", 400, "Noma'lum 'action' qiymati yuborildi"),
@@ -231,7 +245,6 @@ ERROR_CODES = [
     ("NUMBER_NOT_AVAILABLE", 404, "Hozircha bo'sh raqam yo'q"),
     ("ORDER_NOT_FOUND", 404, "'order_id' bo'yicha buyurtma topilmadi"),
     ("CODE_NOT_RECEIVED", 408, "SMS-kod hali kelmadi, birozdan keyin qayta urinib ko'ring"),
-    ("RATE_LIMIT_EXCEEDED", 429, "So'rovlar soni limitdan oshdi (60/daqiqa)"),
 ]
 
 ENDPOINTS.append({
@@ -251,18 +264,9 @@ ENDPOINTS.append({
     },
 })
 
-DEFAULT_SECTION = ENDPOINTS[0]["id"]  # "test"
-
-
-def get_endpoint(endpoint_id: str) -> dict:
-    for ep in ENDPOINTS:
-        if ep["id"] == endpoint_id:
-            return ep
-    return ENDPOINTS[0]
-
 
 # ============================================================================
-# 4) CSS — barcha uslublar shu yerda, shablonlarga <style> orqali quyiladi
+# 4) CSS
 # ============================================================================
 
 STYLE_CSS = """
@@ -293,34 +297,20 @@ code, pre, .font-mono { font-family: "SFMono-Regular", ui-monospace, Menlo, Cons
 .method-badge-put  { background: #fff4e0; color: #b5760a; }
 .method-badge-delete { background: #fde8e8; color: #c2280f; }
 
-/* ---------- Unified code card: tabs + kod bitta uzluksiz karta ichida ---------- */
+/* ---------- Unified code card: tabs + kod bitta uzluksiz karta ---------- */
 .code-card {
-  border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  background: #ffffff;
-  margin-bottom: 2rem;
+  border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; margin-bottom: 2rem;
 }
 .code-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 8px 10px 0 10px;
-  background: #ffffff;
-  border-bottom: 1px solid #eef0f3;
-  overflow-x: auto;
+  display: flex; gap: 4px; padding: 8px 10px 0 10px; background: #ffffff;
+  border-bottom: 1px solid #eef0f3; overflow-x: auto;
 }
-.code-tab {
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 500;
-  color: #94a3b8;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  white-space: nowrap;
-  transition: all 0.15s ease;
+.code-tab, .resp-tab {
+  padding: 8px 14px; font-size: 12.5px; font-weight: 500; color: #94a3b8;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; white-space: nowrap; transition: all 0.15s ease;
 }
-.code-tab:hover { color: #475569; }
-.code-tab.active { color: #0f172a; border-bottom-color: #5851e0; }
+.code-tab:hover, .resp-tab:hover { color: #475569; }
+.code-tab.active, .resp-tab.active { color: #0f172a; border-bottom-color: #5851e0; }
 
 .code-body-wrap { background: #0d1017; }
 
@@ -338,6 +328,7 @@ code, pre, .font-mono { font-family: "SFMono-Regular", ui-monospace, Menlo, Cons
   font-size: 11px; font-weight: 700; color: #34d399; background: rgba(52, 211, 153, 0.12);
   padding: 2px 8px; border-radius: 4px; font-family: ui-monospace, monospace;
 }
+.response-status.is-error { color: #f87171; background: rgba(248, 113, 113, 0.12); }
 
 .copy-btn {
   display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: #8b93a7;
@@ -347,14 +338,10 @@ code, pre, .font-mono { font-family: "SFMono-Regular", ui-monospace, Menlo, Cons
 .copy-btn.copied { color: #34d399; }
 
 .code-window-body {
-  padding: 16px 18px; font-size: 12.5px; line-height: 1.7; overflow-x: auto;
-  color: #d3d7de; white-space: pre;
+  padding: 16px 18px; font-size: 12.5px; line-height: 1.7; overflow-x: auto; color: #d3d7de; white-space: pre;
 }
 
-/* Standalone dark card — faqat "Namuna javob" bloki uchun */
-.code-window {
-  border-radius: 10px; overflow: hidden; border: 1px solid #1c212b; background: #0d1017;
-}
+.code-window { border-radius: 10px; overflow: hidden; border: 1px solid #1c212b; background: #0d1017; }
 
 .copy-static-btn { transition: color 0.15s ease; }
 
@@ -375,25 +362,21 @@ aside::-webkit-scrollbar-track { background: transparent; }
 .error-code { color: #dc2626; font-weight: 600; }
 .error-http { color: #b5760a; }
 
-/* ---------- Footer (sahifa pastidagi bo'lim) ---------- */
+/* ---------- Footer ---------- */
 .footer-icon { color: #94a3b8; flex-shrink: 0; }
 .footer-link:hover .footer-icon { color: #5851e0; }
+
+/* Section anchor'lar sticky header ostida kesilib qolmasin */
+main section[id] { scroll-margin-top: 24px; }
 """
 
 
 # ============================================================================
-# 5) JS — tab almashtirish, syntax highlight, copy, qidiruv
+# 5) JS
 # ============================================================================
 
 SCRIPT_JS = """
 document.addEventListener("DOMContentLoaded", () => {
-  const langDataEl = document.getElementById("lang-data");
-  const langData = langDataEl ? JSON.parse(langDataEl.textContent) : {};
-
-  const tabs = document.querySelectorAll(".code-tab");
-  const requestCodeEl = document.querySelector("#code-request code");
-  const reqLabel = document.getElementById("req-lang-label");
-
   const labelMap = { curl: "cURL", php: "PHP", python: "Python", cpp: "C++", csharp: "C#", java: "Java" };
 
   function escapeHtml(str) {
@@ -428,39 +411,88 @@ document.addEventListener("DOMContentLoaded", () => {
     return html;
   }
 
-  function renderRequestCode(lang) {
-    const raw = langData[lang] || "";
-    requestCodeEl.innerHTML = highlight(raw, lang);
-    requestCodeEl.dataset.raw = raw;
-    if (reqLabel) reqLabel.textContent = `${labelMap[lang]} \\u00b7 So'rov`;
-  }
+  document.querySelectorAll(".code-card").forEach((card) => {
+    const langDataEl = card.querySelector(".lang-data-el");
+    const langData = langDataEl ? JSON.parse(langDataEl.textContent) : {};
+    const tabs = card.querySelectorAll(".code-tab");
+    const codeEl = card.querySelector(".code-request-el");
+    const labelEl = card.querySelector(".req-lang-label");
 
-  tabs.forEach((tab) => {
-    tab.addEventListener("click", () => {
-      tabs.forEach((t) => t.classList.remove("active"));
-      tab.classList.add("active");
-      renderRequestCode(tab.dataset.lang);
+    function render(lang) {
+      const raw = langData[lang] || "";
+      if (!codeEl) return;
+      codeEl.innerHTML = highlight(raw, lang);
+      codeEl.dataset.raw = raw;
+      if (labelEl) labelEl.textContent = `${labelMap[lang]} \\u00b7 So'rov`;
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        render(tab.dataset.lang);
+      });
     });
+
+    render("curl");
   });
 
-  if (requestCodeEl) renderRequestCode("curl");
-
-  const jsonEl = document.getElementById("json-response");
-  if (jsonEl) {
-    let raw = jsonEl.textContent;
-    try { raw = JSON.stringify(JSON.parse(raw), null, 2); } catch (e) {}
-    let html = escapeHtml(raw);
+  function highlightJson(raw) {
+    let pretty = raw;
+    try { pretty = JSON.stringify(JSON.parse(raw), null, 2); } catch (e) {}
+    let html = escapeHtml(pretty);
     html = html.replace(/"([^"]+)":/g, '<span class="tok-key">"$1"</span>:');
     html = html.replace(/: "([^"]*)"/g, ': <span class="tok-str">"$1"</span>');
     html = html.replace(/: (\\d+(\\.\\d+)?)/g, ': <span class="tok-num">$1</span>');
-    jsonEl.innerHTML = html;
+    html = html.replace(/: (true|false)/g, ': <span class="tok-kw">$1</span>');
+    return { html, pretty };
   }
+
+  // Statik (bitta) JSON javoblar — masalan "Xato kodlari" sahifasidagi namuna
+  document.querySelectorAll(".json-response-el").forEach((el) => {
+    const { html, pretty } = highlightJson(el.textContent);
+    el.innerHTML = html;
+    el.dataset.raw = pretty;
+  });
+
+  // ---------------- Har bir endpointdagi javob-karta: 200 OK / Xato tab almashtirish ----------------
+  document.querySelectorAll(".code-card").forEach((card) => {
+    const dataEl = card.querySelector(".resp-data-el");
+    if (!dataEl) return;
+    const data = JSON.parse(dataEl.textContent);
+    const tabs = card.querySelectorAll(".resp-tab");
+    const codeEl = card.querySelector(".json-response-el");
+    const statusEl = card.querySelector(".resp-status-el");
+
+    function renderResp(kind) {
+      const entry = data[kind];
+      if (!entry || !codeEl) return;
+      const { html, pretty } = highlightJson(JSON.stringify(entry.body));
+      codeEl.innerHTML = html;
+      codeEl.dataset.raw = pretty;
+      if (statusEl) {
+        statusEl.textContent = entry.label;
+        statusEl.classList.toggle("is-error", kind === "error");
+      }
+    }
+
+    tabs.forEach((tab) => {
+      tab.addEventListener("click", () => {
+        tabs.forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        renderResp(tab.dataset.resp);
+      });
+    });
+
+    renderResp("success");
+  });
 
   document.querySelectorAll(".copy-btn").forEach((btn) => {
     btn.addEventListener("click", async () => {
-      const targetId = btn.dataset.target;
-      const targetEl = document.querySelector(`#${targetId} code`);
-      const text = targetEl.dataset.raw || targetEl.textContent;
+      const container = btn.closest(".code-body-wrap, .code-window");
+      const codeEl = container ? container.querySelector("code") : null;
+      if (!codeEl) return;
+      const text = codeEl.dataset.raw || codeEl.textContent;
       try {
         await navigator.clipboard.writeText(text);
         const label = btn.querySelector("span:last-child");
@@ -492,12 +524,43 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     });
   }
+
+  const params = new URLSearchParams(location.search);
+  const legacySection = params.get("section");
+  if (legacySection) {
+    const target = document.getElementById(legacySection);
+    if (target) setTimeout(() => target.scrollIntoView(), 0);
+  }
+
+  const sections = document.querySelectorAll("main section[id]");
+  const navLinks = document.querySelectorAll("#sidebar-nav .nav-link");
+
+  function setActiveLink(id) {
+    navLinks.forEach((link) => {
+      const isActive = link.getAttribute("href") === "#" + id;
+      link.classList.toggle("nav-link-active", isActive);
+      link.classList.toggle("text-slate-600", !isActive);
+    });
+  }
+
+  if ("IntersectionObserver" in window && sections.length) {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveLink(entry.target.id);
+        });
+      },
+      { rootMargin: "-15% 0px -70% 0px", threshold: 0 }
+    );
+    sections.forEach((s) => observer.observe(s));
+    setActiveLink(sections[0].id);
+  }
 });
 """
 
 
 # ============================================================================
-# 6) HTML SHABLONLARI (Jinja2, DictLoader orqali xotiradan yuklanadi)
+# 6) HTML SHABLONLARI
 # ============================================================================
 
 TEMPLATES = {
@@ -507,7 +570,7 @@ TEMPLATES = {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ brand }} — Virtual raqamlar va SMS-kod API</title>
+<title>{{ brand }} — SIM API</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { theme: { extend: { colors: { brand: {
@@ -529,10 +592,10 @@ TEMPLATES = {
       <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
         <a href="#features" class="hover:text-slate-900">Imkoniyatlar</a>
         <a href="#" class="hover:text-slate-900">Narxlar</a>
-        <a href="/docs" class="hover:text-slate-900">Hujjatlar</a>
+        <a href="/docs" class="hover:text-slate-900">Documentation</a>
       </nav>
       <a href="/docs" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 transition">
-        API hujjatlari
+        API docs
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </div>
@@ -549,14 +612,14 @@ TEMPLATES = {
           Virtual raqamlarni bir nechta<br> API chaqiruvi bilan oling
         </h1>
         <p class="mt-6 text-lg text-slate-600 leading-relaxed max-w-lg">
-          {{ brand }} — istalgan davlat uchun vaqtinchalik telefon raqamlarini sotib olish
+          {{ brand }} — istalgan davlat uchun telefon raqamlarini sotib olish
           va ularga kelgan SMS-kodlarni oddiy REST API orqali olish imkonini beradi.
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
           <a href="/docs" class="rounded-lg bg-brand-600 text-white font-medium px-5 py-3 text-sm hover:bg-brand-700 transition shadow-sm shadow-brand-600/20">
-            Hujjatlarni ko'rish
+            DOCS Ko'rish
           </a>
-          <a href="/docs?section=test" class="rounded-lg border border-slate-200 text-slate-700 font-medium px-5 py-3 text-sm hover:bg-slate-50 transition">
+          <a href="/docs#test" class="rounded-lg border border-slate-200 text-slate-700 font-medium px-5 py-3 text-sm hover:bg-slate-50 transition">
             Tezkor boshlash
           </a>
         </div>
@@ -573,7 +636,7 @@ TEMPLATES = {
           <span class="w-3 h-3 rounded-full bg-[#28c840]"></span>
           <span class="ml-3 text-xs text-slate-400 font-mono">accounts_get.py</span>
         </div>
-        <pre class="bg-[#0e1116] text-[13px] leading-relaxed p-5 overflow-x-auto font-mono"><code><span class="tok-kw">import</span> requests
+        <pre class="bg-[#0e1116] text-[13px] leading-relaxed p-5 overflow-x-auto font-mono text-slate-300"><code><span class="tok-kw">import</span> requests
 
 url = <span class="tok-str">"{{ base_url }}/accounts_get"</span>
 payload = {
@@ -610,7 +673,7 @@ response = requests.post(url, json=payload)
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17V7a2 2 0 012-2h8l6 6v6a2 2 0 01-2 2H6a2 2 0 01-2-2z"/><path d="M14 5v6h6"/></svg>
         </div>
         <h3 class="font-semibold">Aniq hujjatlar</h3>
-        <p class="text-sm text-slate-500 mt-1.5 leading-relaxed">Har bir endpoint uchun 6 xil tilda (cURL, PHP, Python, C++, C#, Java) namunalar tayyor holda.</p>
+        <p class="text-sm text-slate-500 mt-1.5 leading-relaxed">Har bir endpoint uchun 6 xil tilda (cURL, PHP, Python, C++, C#, Java) namunalar, muvaffaqiyatli va xato javoblari bilan.</p>
       </div>
     </div>
   </section>
@@ -618,7 +681,7 @@ response = requests.post(url, json=payload)
   <footer class="border-t border-slate-100 py-8">
     <div class="max-w-6xl mx-auto px-6 flex items-center justify-between text-sm text-slate-400">
       <span>© 2026 {{ brand }}. Barcha huquqlar himoyalangan.</span>
-      <a href="/docs" class="hover:text-slate-700">API hujjatlari →</a>
+      <a href="/docs" class="hover:text-slate-700">API DOCS →</a>
     </div>
   </footer>
 
@@ -630,7 +693,7 @@ response = requests.post(url, json=payload)
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ active.title }} · {{ brand }} API hujjatlari</title>
+<title>{{ brand }} API DOCS</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { theme: { extend: { colors: { brand: {
@@ -643,14 +706,14 @@ response = requests.post(url, json=payload)
 
   <div class="flex items-start">
 
-    <!-- ============ SIDEBAR (sticky, lekin faqat o'z balandligicha — footer to'g'ri joylashishi uchun) ============ -->
+    <!-- ============ SIDEBAR ============ -->
     <aside class="w-72 shrink-0 border-r border-slate-100 flex flex-col self-start sticky top-0 max-h-screen overflow-y-auto">
       <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
         <a href="/" class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
             <span class="text-white font-bold text-xs">X</span>
           </div>
-          <span class="font-semibold tracking-tight">{{ brand }} docs</span>
+          <span class="font-semibold tracking-tight">{{ brand }}</span>
         </a>
       </div>
 
@@ -679,9 +742,9 @@ response = requests.post(url, json=payload)
             <div class="px-2 mt-5 mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400 nav-group-label">{{ ep.group }}</div>
             {% set ns.last_group = ep.group %}
           {% endif %}
-          <a href="/docs?section={{ ep.id }}"
+          <a href="#{{ ep.id }}"
              data-label="{{ ep.title|lower }}"
-             class="nav-link group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm mb-0.5 {% if ep.id == active.id %}nav-link-active{% else %}text-slate-600 hover:bg-slate-50 hover:text-slate-900{% endif %}">
+             class="nav-link group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm mb-0.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
             {% if ep.method %}
               <span class="method-tag method-{{ ep.method|lower }}">{{ ep.method }}</span>
             {% else %}
@@ -695,21 +758,22 @@ response = requests.post(url, json=payload)
       </nav>
     </aside>
 
-    <!-- ============ MAIN CONTENT — oddiy sahifa oqimi, mustaqil scroll YO'Q ============ -->
+    <!-- ============ MAIN CONTENT ============ -->
     <main class="flex-1 min-w-0">
-      <div class="max-w-3xl mx-auto px-10 py-12">
 
-        <div class="text-xs font-medium text-brand-600 uppercase tracking-wide mb-2">{{ active.group }}</div>
+      {% for ep in endpoints %}
+      <section id="{{ ep.id }}" class="max-w-4xl mx-auto px-10 py-12 {% if not loop.first %}border-t border-slate-100{% endif %}">
 
-        {% if active.type == "errors" %}
-        <!-- ============ XATO KODLARI SAHIFASI ============ -->
+        <div class="text-xs font-medium text-brand-600 uppercase tracking-wide mb-2">{{ ep.group }}</div>
+
+        {% if ep.type == "errors" %}
         <div class="flex items-center gap-3">
           <span class="w-9 h-9 rounded-lg bg-rose-50 text-rose-500 flex items-center justify-center shrink-0">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
           </span>
-          <h1 class="text-3xl font-bold tracking-tight">{{ active.title }}</h1>
+          <h1 class="text-3xl font-bold tracking-tight">{{ ep.title }}</h1>
         </div>
-        <p class="mt-4 text-slate-600 leading-relaxed">{{ active.description }}</p>
+        <p class="mt-4 text-slate-600 leading-relaxed">{{ ep.description }}</p>
 
         <div class="rounded-xl border border-slate-100 overflow-hidden mt-8 error-table">
           <table class="w-full text-sm">
@@ -721,7 +785,7 @@ response = requests.post(url, json=payload)
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
-              {% for code, http, desc in active.error_codes %}
+              {% for code, http, desc in ep.error_codes %}
               <tr>
                 <td class="px-4 py-3 font-mono text-[12.5px] error-code">{{ code }}</td>
                 <td class="px-4 py-3 font-mono text-[12.5px] error-http">{{ http }}</td>
@@ -735,29 +799,28 @@ response = requests.post(url, json=payload)
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">Xato javobi namunasi</h2>
         <div class="code-window">
           <div class="code-window-header">
-            <span class="response-status" style="color:#f87171;background:rgba(248,113,113,0.12);">ERROR</span>
+            <span class="response-status is-error">ERROR</span>
             <span class="code-window-title">JSON</span>
-            <button class="copy-btn" data-target="code-response">
+            <button class="copy-btn">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
               <span>Copy</span>
             </button>
           </div>
-          <pre class="code-window-body" id="code-response"><code id="json-response">{{ active.response | tojson(indent=2) }}</code></pre>
+          <pre class="code-window-body"><code class="json-response-el">{{ ep.response | tojson(indent=2) }}</code></pre>
         </div>
 
         {% else %}
-        <!-- ============ ODDIY ENDPOINT SAHIFASI ============ -->
         <div class="flex items-center gap-3 flex-wrap">
-          <span class="method-badge method-badge-{{ active.method|lower }}">{{ active.method }}</span>
-          <code class="text-[15px] font-mono text-slate-700">{{ active.path }}</code>
+          <span class="method-badge method-badge-{{ ep.method|lower }}">{{ ep.method }}</span>
+          <code class="text-[15px] font-mono text-slate-700">{{ ep.path }}</code>
         </div>
-        <h1 class="text-3xl font-bold tracking-tight mt-3">{{ active.title }}</h1>
-        <p class="mt-4 text-slate-600 leading-relaxed">{{ active.description }}</p>
+        <h1 class="text-3xl font-bold tracking-tight mt-3">{{ ep.title }}</h1>
+        <p class="mt-4 text-slate-600 leading-relaxed">{{ ep.description }}</p>
 
-        {% if active.params %}
+        {% if ep.params %}
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">Parametrlar</h2>
         <div class="rounded-xl border border-slate-100 divide-y divide-slate-100 overflow-hidden">
-          {% for p in active.params %}
+          {% for p in ep.params %}
           <div class="p-4 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-6">
             <div class="w-40 shrink-0">
               <code class="text-[13px] font-mono font-semibold text-slate-800">{{ p.name }}</code>
@@ -772,7 +835,6 @@ response = requests.post(url, json=payload)
         </div>
         {% endif %}
 
-        <!-- ---------- Kod namunalari: tab + kod BITTA uzluksiz kartada ---------- -->
         <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">So'rov namunasi</h2>
 
         <div class="code-card">
@@ -784,35 +846,58 @@ response = requests.post(url, json=payload)
           <div class="code-body-wrap">
             <div class="code-window-header">
               <span class="dot dot-red"></span><span class="dot dot-yellow"></span><span class="dot dot-green"></span>
-              <span class="code-window-title" id="req-lang-label">cURL &middot; So'rov</span>
-              <button class="copy-btn" data-target="code-request">
+              <span class="code-window-title req-lang-label">cURL &middot; So'rov</span>
+              <button class="copy-btn">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                 <span>Copy</span>
               </button>
             </div>
-            <pre class="code-window-body" id="code-request"><code>{{ active.code.curl }}</code></pre>
+            <pre class="code-window-body"><code class="code-request-el">{{ ep.code.curl }}</code></pre>
           </div>
+          <script type="application/json" class="lang-data-el">
+            {
+              "curl": {{ ep.code.curl | tojson }},
+              "php": {{ ep.code.php | tojson }},
+              "python": {{ ep.code.python | tojson }},
+              "cpp": {{ ep.code.cpp | tojson }},
+              "csharp": {{ ep.code.csharp | tojson }},
+              "java": {{ ep.code.java | tojson }}
+            }
+          </script>
         </div>
 
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mb-4">Namuna javob</h2>
-        <div class="code-window">
-          <div class="code-window-header">
-            <span class="response-status">200 OK</span>
-            <span class="code-window-title">JSON</span>
-            <button class="copy-btn" data-target="code-response">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-              <span>Copy</span>
-            </button>
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-400 mt-10 mb-4">Namuna javob</h2>
+
+        <div class="code-card">
+          <div class="code-tabs">
+            <button class="resp-tab active" data-resp="success">200 OK</button>
+            <button class="resp-tab" data-resp="error">{{ ep.error_status }}</button>
           </div>
-          <pre class="code-window-body" id="code-response"><code id="json-response">{{ active.response | tojson(indent=2) }}</code></pre>
+          <div class="code-body-wrap">
+            <div class="code-window-header">
+              <span class="response-status resp-status-el">200 OK</span>
+              <span class="code-window-title">JSON</span>
+              <button class="copy-btn">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                <span>Copy</span>
+              </button>
+            </div>
+            <pre class="code-window-body"><code class="json-response-el"></code></pre>
+          </div>
+          <script type="application/json" class="resp-data-el">
+            {
+              "success": {"label": "200 OK", "body": {{ ep.response | tojson }} },
+              "error": {"label": {{ ep.error_status | tojson }}, "body": {{ ep.error_body | tojson }} }
+            }
+          </script>
         </div>
         {% endif %}
 
-      </div>
+      </section>
+      {% endfor %}
 
-      <!-- ============ FOOTER (sahifa pastida, to'liq eni bo'yicha) ============ -->
       <footer class="border-t border-slate-100">
-        <div class="max-w-4xl mx-auto px-10 py-12 grid sm:grid-cols-3 gap-10">
+        <div class="px-10 py-12 grid sm:grid-cols-3 gap-10">
           <div>
             <div class="flex items-center gap-2">
               <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
@@ -827,19 +912,19 @@ response = requests.post(url, json=payload)
           <div>
             <h4 class="font-semibold text-sm text-slate-900 mb-4">Havolalar</h4>
             <ul class="space-y-3 text-sm text-slate-600">
-              <li><a href="/docs?section=test" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+              <li><a href="#test" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h7l-1 8 11-14h-8l1-6z"/></svg>
                 Test uchun</a></li>
-              <li><a href="/docs?section=balance" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+              <li><a href="#balance" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="14" rx="2"/><path d="M2 10h20"/><circle cx="17" cy="15" r="1"/></svg>
                 Balans</a></li>
-              <li><a href="/docs?section=nomer-olish" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+              <li><a href="#nomer-olish" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6A19.79 19.79 0 012.12 4.18 2 2 0 014.11 2h3a2 2 0 012 1.72c.12.81.31 1.6.57 2.36a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.72-1.14a2 2 0 012.11-.45c.76.26 1.55.45 2.36.57A2 2 0 0122 16.92z"/></svg>
                 Nomer olish</a></li>
-              <li><a href="/docs?section=kod-olish" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+              <li><a href="#kod-olish" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
                 Kod olish</a></li>
-              <li><a href="/docs?section=xato-kodlari" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+              <li><a href="#xato-kodlari" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                 Xato kodlari</a></li>
             </ul>
@@ -862,7 +947,7 @@ response = requests.post(url, json=payload)
         </div>
 
         <div class="border-t border-slate-100">
-          <div class="max-w-4xl mx-auto px-10 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+          <div class="px-10 py-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
             <span>© 2026 {{ brand }} · Barcha huquqlar himoyalangan</span>
             <span>REST API · JSON · API Key</span>
           </div>
@@ -870,19 +955,6 @@ response = requests.post(url, json=payload)
       </footer>
     </main>
   </div>
-
-  {% if active.code %}
-  <script id="lang-data" type="application/json">
-    {
-      "curl": {{ active.code.curl | tojson }},
-      "php": {{ active.code.php | tojson }},
-      "python": {{ active.code.python | tojson }},
-      "cpp": {{ active.code.cpp | tojson }},
-      "csharp": {{ active.code.csharp | tojson }},
-      "java": {{ active.code.java | tojson }}
-    }
-  </script>
-  {% endif %}
 
   <script>{{ script|safe }}</script>
 </body>
@@ -912,6 +984,7 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+app.include_router(v1_router)
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -922,12 +995,15 @@ async def landing_page(request: Request):
 
 @app.get("/docs", response_class=HTMLResponse)
 @app.get("/api", response_class=HTMLResponse)
-async def api_docs(request: Request, section: str = DEFAULT_SECTION):
-    active = get_endpoint(section)
+async def api_docs(request: Request):
+    """
+    Custom API hujjatlar sahifasi — BITTA uzluksiz sahifa.
+    Barcha bo'limlar ketma-ket joylashgan; sidebar havolalari va eski
+    ?section=xxx havolalari sahifa ichidagi tegishli bo'limga scroll qiladi.
+    """
     return HTMLResponse(render(
         "docs.html",
         endpoints=ENDPOINTS,
-        active=active,
         languages=LANGUAGES,
     ))
 
