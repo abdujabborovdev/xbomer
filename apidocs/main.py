@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, DictLoader, select_autoescape
 
-BRAND = "XBOME"
+BRAND = "XBOMER"
 BASE_URL = "https://xbomer.uz/api/v1"
 
 LANGUAGES = [
@@ -906,8 +906,8 @@ def render(template_name: str, **context) -> str:
 # ============================================================================
 
 app = FastAPI(
-    title="XBOME API",
-    description="XBOME — SMS-kod qabul qilish uchun virtual raqamlar sotib olish API",
+    title="XBOMER API",
+    description="XBOMER — SMS-kod qabul qilish uchun virtual raqamlar sotib olish API",
     version="1.0.0",
     docs_url=None,
     redoc_url=None,
@@ -923,7 +923,6 @@ async def landing_page(request: Request):
 @app.get("/docs", response_class=HTMLResponse)
 @app.get("/api", response_class=HTMLResponse)
 async def api_docs(request: Request, section: str = DEFAULT_SECTION):
-    """Custom API hujjatlar sahifasi. ?section=... orqali bo'lim tanlanadi."""
     active = get_endpoint(section)
     return HTMLResponse(render(
         "docs.html",

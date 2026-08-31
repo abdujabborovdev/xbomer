@@ -1,17 +1,12 @@
-from db_xbomer import *
+import requests
 
-numbers_price = None  # Boshida bo'sh turadi
+url = "https://unsuspectingly-vigorous-natalee.ngrok-free.dev/api/v1/api/v1/"
 
+payload = {
+    "key": "f127e71118b6ab984688873d2a96e297"
+}
 
-def get_numbers_price(session):
-    global numbers_price
-    if not numbers_price:
-        # Bazadan hammasini olib, dictga aylantiramiz
-        # Masalan: item.number - kalit, item.price - narx deb olsak
-        items = session.query(Numbers_list).all()
-        numbers_price = {item.country: item.price for item in items}
-
-    if 'US' not in numbers_price:
-        return 'xato'
-
-print(get_numbers_price(session))
+# params o'rniga json=payload ishlatamiz
+response = requests.post(url, json=payload)
+print(response.status_code)
+print(response.text)
