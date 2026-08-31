@@ -1,1 +1,1 @@
-web: uvicorn apidocs.main:app --host 0.0.0.0 --port $PORT
+uvicorn apidocs.main:app --host 0.0.0.0 --port $PORT
