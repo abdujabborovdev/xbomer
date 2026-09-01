@@ -1,11 +1,35 @@
+"""
+XBOMER API — Custom Documentation Site (SINGLE FILE)
+-----------------------------------------------------
+Bitta faylda to'liq ishlaydigan FastAPI ilova: HTML, CSS va JS shu faylning
+o'zida (Jinja2 DictLoader orqali) saqlanadi — alohida templates/ yoki static/
+papka kerak emas.
+
+Routing:
+    "/"      -> Landing (xush kelibsiz) sahifa
+    "/docs"  -> Custom API hujjatlar sahifasi (shuningdek "/api" ham ishlaydi).
+                Bu BITTA uzluksiz sahifa: barcha bo'limlar (Test uchun, Balans,
+                Nomer olish, Kod olish, Xato kodlari) ketma-ket joylashgan va
+                sidebar'dagi havolalar shu bo'limlarga scroll qiladi (anchor).
+
+Ishga tushirish:
+    pip install fastapi uvicorn jinja2
+    uvicorn main:app --reload
+
+Keyin http://127.0.0.1:8000/ ni oching.
+"""
 
 import json
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Environment, DictLoader, select_autoescape
-from api.v1 import router as v1_router
-BRAND = "xbomer.uz"
+
+# ============================================================================
+# 1) SOZLAMALAR
+# ============================================================================
+
+BRAND = "XBOMER"
 BASE_URL = "https://xbomer.uz/api/v1/"
 
 LANGUAGES = [
@@ -204,7 +228,7 @@ ENDPOINTS = [
     ),
     _ep(
         "nomer-olish", "Raqamlar", "Nomer olish", "POST", "/api/v1/accounts_get/",
-        "Tanlangan davlat uchun SMS qabul qilishga tayyor yangi raqam "
+        "Tanlangan davlat uchun SMS qabul qilishga tayyor yangi vaqtinchalik raqam "
         "sotib oladi. Qaytgan `id` qiymatini keyinchalik kodni olish uchun ishlating.",
         [
             {"name": "key", "type": "string", "required": True, "desc": "Sizning API kalitingiz"},
@@ -236,7 +260,7 @@ ENDPOINTS = [
 # "Xato kodlari" — oddiy endpoint emas, alohida "errors" turi bilan qo'shiladi
 # ---------------------------------------------------------------------------
 ERROR_CODES = [
-    ("MISSING_API_KEY", 400, "API kaliti ('key') yuborilmadi"),
+    ("MISSING_API_KEY", 401, "API kaliti ('key') yuborilmadi"),
     ("INVALID_API_KEY", 401, "API kalit noto'g'ri yoki bloklangan"),
     ("MISSING_ACTION", 400, "'action' parametri topilmadi"),
     ("INVALID_ACTION", 400, "Noma'lum 'action' qiymati yuborildi"),
@@ -245,6 +269,7 @@ ERROR_CODES = [
     ("NUMBER_NOT_AVAILABLE", 404, "Hozircha bo'sh raqam yo'q"),
     ("ORDER_NOT_FOUND", 404, "'order_id' bo'yicha buyurtma topilmadi"),
     ("CODE_NOT_RECEIVED", 408, "SMS-kod hali kelmadi, birozdan keyin qayta urinib ko'ring"),
+    ("RATE_LIMIT_EXCEEDED", 429, "So'rovlar soni limitdan oshdi (60/daqiqa)"),
 ]
 
 ENDPOINTS.append({
@@ -262,6 +287,280 @@ ENDPOINTS.append({
         "message": "Balansda mablag' yetarli emas",
         "error_code": "INSUFFICIENT_BALANCE",
     },
+})
+
+# ---------------------------------------------------------------------------
+# "Narxlar" — davlat kodlari va ularning narxlari (UZS). "accounts_get"
+# so'rovidagi `country` parametri aynan shu ikki xonali kodlardan biri
+# bo'lishi kerak — shuning uchun bu sahifada har bir kodning to'liq nomi,
+# bayrog'i va narxi ko'rsatiladi.
+# ---------------------------------------------------------------------------
+COUNTRY_NAMES = {
+    "CO": "Kolumbiya 🇨🇴", "US": "Amerika 🇺🇸", "IN": "Hindiston 🇮🇳", "BD": "Bangladesh 🇧🇩",
+    "IR": "Eron 🇮🇷", "ID": "Indoneziya 🇮🇩", "PK": "Pokiston 🇵🇰", "CL": "Chili 🇨🇱",
+    "KE": "Keniya 🇰🇪", "AO": "Angola 🇦🇴", "NP": "Nepal 🇳🇵", "AF": "Afg'oniston 🇦🇫",
+    "ZW": "Zimbabve 🇿🇼", "MG": "Madagaskar 🇲🇬", "SD": "Sudan 🇸🇩", "TZ": "Tanzaniya 🇹🇿",
+    "DZ": "Jazoir 🇩🇿", "JM": "Yamayka 🇯🇲", "LK": "Shri-Lanka 🇱🇰", "PL": "Polsha 🇵🇱",
+    "SZ": "Esvatini 🇸🇿", "UG": "Uganda 🇺🇬", "BF": "Burkina-Faso 🇧🇫", "MR": "Mavritaniya 🇲🇷",
+    "PR": "Puerto-Riko 🇵🇷", "AR": "Argentina 🇦🇷", "CU": "Kuba 🇨🇺", "MX": "Meksika 🇲🇽",
+    "NI": "Nikaragua 🇳🇮", "JE": "Jersi 🇯🇪", "BW": "Botsvana 🇧🇼",
+    "CG": "Kongo 🇨🇬", "MU": "Mavrikiy 🇲🇺", "GN": "Gvineya 🇬🇳", "MA": "Marokash 🇲🇦",
+    "DO": "Dominikan Respublikasi 🇩🇴", "TJ": "Tojikiston 🇹🇯", "VN": "Vyetnam 🇻🇳", "MQ": "Martinika 🇲🇶",
+    "BR": "Braziliya 🇧🇷", "HN": "Gonduras 🇭🇳", "SV": "Salvador 🇸🇻", "GB": "Buyuk Britaniya 🇬🇧",
+    "GG": "Gernsi 🇬🇬", "NA": "Namibiya 🇳🇦", "SO": "Somali 🇸🇴", "GW": "Gvineya-Bisau 🇬🇼",
+    "ML": "Mali 🇲🇱", "TM": "Turkmaniston 🇹🇲", "IL": "Isroil 🇮🇱",
+    "SY": "Suriya 🇸🇾", "UY": "Urugvay 🇺🇾", "HT": "Gaiti 🇭🇹", "GT": "Gvatemala 🇬🇹",
+    "CV": "Kabo-Verde 🇨🇻", "SN": "Senegal 🇸🇳", "GM": "Gambiya 🇬🇲", "VI": "Virgin orollari (AQSh) 🇻🇮",
+    "VE": "Venesuela 🇻🇪", "EE": "Estoniya 🇪🇪", "DJ": "Jibuti 🇩🇯", "LR": "Liberiya 🇱🇷",
+    "TN": "Tunis 🇹🇳", "KN": "Sent-Kits va Nevis 🇰🇳", "TT": "Trinidad va Tobago 🇹🇹", "GU": "Guam 🇬🇺",
+    "GD": "Grenada 🇬🇩", "PF": "Fransuz Polineziyasi 🇵🇫", "TO": "Tonga 🇹🇴", "MY": "Malayziya 🇲🇾",
+    "GY": "Gayana 🇬🇾", "KM": "Comoros 🇰🇲", "AG": "Antigua va Barbuda 🇦🇬", "BS": "Bagama orollari 🇧🇸",
+    "SA": "Saudiya Arabistoni 🇸🇦", "LB": "Livan 🇱🇧", "CN": "Xitoy 🇨🇳", "KH": "Kambodja 🇰🇭",
+    "SB": "Solomon orollari 🇸🇧", "PE": "Peru 🇵🇪", "TD": "Chad 🇹🇩", "PS": "Falastin 🇵🇸",
+    "TR": "Turkiya 🇹🇷", "LA": "Laos 🇱🇦", "HK": "Gonkong 🇭🇰", "FM": "Mikroneziya 🇫🇲",
+    "KI": "Kiribati 🇰🇮", "WS": "Samoa 🇼🇸", "FJ": "Fiji 🇫🇯", "VU": "Vanuatu 🇻🇺",
+    "TL": "Sharqiy Timor 🇹🇱", "CW": "Kurasao 🇨🇼", "PY": "Paragvay 🇵🇾", "IT": "Italiya 🇮🇹",
+    "MK": "Shimoliy Makedoniya 🇲🇰", "ME": "Chernogoriya 🇲🇪", "FI": "Finlandiya 🇫🇮", "GL": "Grenlandiya 🇬🇱",
+    "ER": "Eritreya 🇪🇷", "MW": "Malavi 🇲🇼", "RE": "Reunion 🇷🇪", "YT": "Mayotta 🇾🇹",
+    "SC": "Seyshel orollari 🇸🇨", "GA": "Gabon 🇬🇦", "GQ": "Ekvatorial Gvineya 🇬🇶", "ST": "San-Tome va Prinsipi 🇸🇹",
+    "CI": "Kot-d'Ivuar 🇨🇮", "LY": "Liviya 🇱🇾", "VC": "Sent-Vinsent va Grenadin 🇻🇨", "DM": "Dominika 🇩🇲",
+    "LC": "Sent-Lusiya 🇱🇨", "SX": "Sint-Marten 🇸🇽", "BM": "Bermuda orollari 🇧🇲", "IM": "Men oroli 🇮🇲",
+    "TC": "Turks va Kaykos 🇹🇨", "KG": "Qirg'iziston 🇰🇬", "JO": "Iordaniya 🇯🇴", "KZ": "Qozog'iston 🇰🇿",
+    "GP": "Gvadelupa 🇬🇵", "BZ": "Beliz 🇧🇿", "DE": "Germaniya 🇩🇪", "BA": "Bosniya va Gersegovina 🇧🇦",
+    "AM": "Armaniston 🇦🇲", "FR": "Fransiya 🇫🇷", "MN": "Mongoliya 🇲🇳", "AL": "Albaniya 🇦🇱",
+    "AW": "Aruba 🇦🇼", "SS": "Janubiy Sudan 🇸🇸", "BE": "Belgiya 🇧🇪", "AZ": "Ozarbayjon 🇦🇿",
+    "MD": "Moldova 🇲🇩", "ES": "Ispaniya 🇪🇸", "BT": "Butan 🇧🇹", "MV": "Maldiv orollari 🇲🇻",
+    "NC": "Yangi Kaledoniya 🇳🇨", "GF": "Gviana (Fransuz) 🇬🇫", "BO": "Boliviya 🇧🇴", "PM": "Sen-Pyer va Mikelon 🇵🇲",
+    "CZ": "Chexiya 🇨🇿", "HR": "Xorvatiya 🇭🇷", "LU": "Lyuksemburg 🇱🇺", "GR": "Gretsiya 🇬🇷",
+    "AS": "Amerika Samoasi 🇦🇸", "KY": "Kayman orollari 🇰🇾", "VG": "Britaniya Virgin orollari 🇻🇬", "OM": "Omon 🇴🇲",
+    "KW": "Kuvayt 🇰🇼", "AU": "Avstraliya 🇦🇺", "LT": "Litva 🇱🇹", "NL": "Niderlandiya 🇳🇱",
+    "MO": "Makao 🇲🇴", "JP": "Yaponiya 🇯🇵", "DK": "Daniya 🇩🇰", "NZ": "Yangi Zelandiya 🇳🇿",
+    "WF": "Uollis va Futuna 🇼🇫", "NR": "Nauru 🇳🇷", "NO": "Norvegiya 🇳🇴", "UA": "Ukraina 🇺🇦",
+    "MT": "Malta 🇲🇹", "AE": "Birlashgan A.A 🇦🇪", "QA": "Qatar 🇶🇦", "KR": "Janubiy Koreya 🇰🇷",
+    "BH": "Bahrayn 🇧🇭", "NU": "Niue 🇳🇺", "BN": "Bruney 🇧🇳", "SG": "Singapur 🇸🇬",
+    "GI": "Gibraltar 🇬🇮",
+    # Narxlar ro'yxatida uchraydi, lekin yuqoridagi lug'atda yo'q edi — qo'shildi:
+    "UZ": "O'zbekiston 🇺🇿", "CR": "Kosta-Rika 🇨🇷", "CD": "Kongo DR 🇨🇩",
+    "CF": "Markaziy Afrika Respublikasi 🇨🇫", "RO": "Ruminiya 🇷🇴", "PT": "Portugaliya 🇵🇹",
+    "TW": "Tayvan 🇹🇼",
+    "GE": "Gruziya 🇬🇪",
+}
+
+# Xom narxlar ro'yxati — "ID: 851| CO | 6825" formatida, foydalanuvchi bergan
+# tartibda. ID'lar saqlash uchun emas — pastda 1 dan qayta raqamlanadi.
+_RAW_PRICING = """
+ID: 851| CO | 6825
+ID: 852| US | 7508
+ID: 853| IN | 7963
+ID: 854| BD | 7963
+ID: 855| ID | 9100
+ID: 856| CL | 10238
+ID: 857| AO | 10920
+ID: 858| IR | 11375
+ID: 859| AF | 11375
+ID: 860| ZW | 11375
+ID: 861| MG | 11375
+ID: 862| SD | 11375
+ID: 863| TZ | 12513
+ID: 864| DZ | 12513
+ID: 865| JM | 12513
+ID: 866| LK | 13650
+ID: 867| SZ | 13650
+ID: 868| UG | 13650
+ID: 869| BF | 13650
+ID: 870| MR | 13650
+ID: 871| PR | 13650
+ID: 872| UZ | 14788
+ID: 873| AR | 14788
+ID: 874| CU | 14788
+ID: 875| MX | 14788
+ID: 876| CR | 14788
+ID: 877| NI | 14788
+ID: 878| JE | 14788
+ID: 879| BW | 14788
+ID: 880| CD | 14788
+ID: 881| CG | 14788
+ID: 882| MU | 14788
+ID: 883| GN | 14788
+ID: 884| MA | 14788
+ID: 885| DO | 14788
+ID: 886| TJ | 15925
+ID: 887| IL | 15925
+ID: 888| VN | 15925
+ID: 889| MQ | 15925
+ID: 890| BR | 15925
+ID: 891| HN | 15925
+ID: 892| SV | 15925
+ID: 893| GB | 15925
+ID: 894| GG | 15925
+ID: 895| NA | 15925
+ID: 896| SO | 15925
+ID: 897| GW | 15925
+ID: 898| CF | 15925
+ID: 899| ML | 15925
+ID: 900| TM | 17063
+ID: 901| UY | 17063
+ID: 902| HT | 17063
+ID: 903| GT | 17063
+ID: 904| SN | 17063
+ID: 905| GM | 17063
+ID: 906| VI | 17063
+ID: 907| SY | 18200
+ID: 908| EE | 18200
+ID: 909| DJ | 18200
+ID: 910| LR | 18200
+ID: 911| TN | 18200
+ID: 912| KN | 18200
+ID: 913| TT | 18200
+ID: 914| GU | 18200
+ID: 915| GD | 18200
+ID: 916| PF | 19338
+ID: 917| TO | 19338
+ID: 918| MY | 19338
+ID: 919| GY | 19338
+ID: 920| RO | 19338
+ID: 921| KM | 19338
+ID: 922| AG | 19338
+ID: 923| BS | 19338
+ID: 924| SA | 20475
+ID: 925| LB | 20475
+ID: 926| CN | 20475
+ID: 927| KH | 20475
+ID: 928| SB | 20475
+ID: 929| PE | 20475
+ID: 930| IT | 20475
+ID: 931| TD | 20475
+ID: 932| PS | 22750
+ID: 933| TR | 22750
+ID: 934| LA | 22750
+ID: 935| HK | 22750
+ID: 936| FM | 22750
+ID: 937| KI | 22750
+ID: 938| WS | 22750
+ID: 939| FJ | 22750
+ID: 940| VU | 22750
+ID: 941| TL | 22750
+ID: 942| CW | 22750
+ID: 943| PY | 22750
+ID: 944| MK | 22750
+ID: 945| ME | 22750
+ID: 946| FI | 22750
+ID: 947| PT | 22750
+ID: 948| GL | 22750
+ID: 949| ER | 22750
+ID: 950| MW | 22750
+ID: 951| RE | 22750
+ID: 952| YT | 22750
+ID: 953| SC | 22750
+ID: 954| GA | 22750
+ID: 955| GQ | 22750
+ID: 956| ST | 22750
+ID: 957| CI | 22750
+ID: 958| LY | 22750
+ID: 959| VC | 22750
+ID: 960| DM | 22750
+ID: 961| LC | 22750
+ID: 962| SX | 22750
+ID: 963| BM | 22750
+ID: 964| IM | 25025
+ID: 965| TC | 25025
+ID: 966| KG | 27300
+ID: 967| JO | 27300
+ID: 968| KZ | 27300
+ID: 969| GP | 27300
+ID: 970| BZ | 27300
+ID: 971| DE | 27300
+ID: 972| BA | 27300
+ID: 973| AM | 27300
+ID: 974| FR | 27300
+ID: 975| MN | 29575
+ID: 976| AL | 29575
+ID: 977| AW | 29575
+ID: 978| SS | 29575
+ID: 979| BE | 30713
+ID: 980| GE | 31850
+ID: 981| AZ | 31850
+ID: 982| MD | 31850
+ID: 983| ES | 31850
+ID: 984| BT | 34125
+ID: 985| MV | 34125
+ID: 986| NC | 34125
+ID: 987| GF | 34125
+ID: 988| BO | 34125
+ID: 989| PM | 34125
+ID: 990| CZ | 34125
+ID: 991| LU | 34125
+ID: 992| GR | 34125
+ID: 993| AS | 34125
+ID: 994| KY | 34125
+ID: 995| VG | 34125
+ID: 996| OM | 36400
+ID: 997| KW | 37538
+ID: 998| AU | 38675
+ID: 999| LT | 38675
+ID: 1000| NL | 38675
+ID: 1001| MO | 39813
+ID: 1002| JP | 39813
+ID: 1003| DK | 39813
+ID: 1004| NZ | 40950
+ID: 1005| TW | 43225
+ID: 1006| WF | 45500
+ID: 1007| NR | 45500
+ID: 1008| NO | 45500
+ID: 1009| UA | 45500
+ID: 1010| MT | 45500
+ID: 1011| AE | 52325
+ID: 1012| QA | 53463
+ID: 1013| KR | 63700
+ID: 1014| BH | 68250
+ID: 1015| NU | 68250
+ID: 1016| BN | 68250
+ID: 1017| SG | 68250
+ID: 1018| GI | 91000
+"""
+
+
+def _parse_pricing(raw: str) -> list:
+    rows = []
+    seq = 1
+    for line in raw.strip().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        # "ID: 851| CO | 6825" -> "|" bo'yicha bo'lamiz, ID ustunini tashlab yuboramiz
+        parts = [p.strip() for p in line.split("|")]
+        if len(parts) != 3:
+            continue
+        code = parts[1].upper()
+        try:
+            price = int(parts[2])
+        except ValueError:
+            continue
+        rows.append({
+            "no": seq,                       # 1 dan qayta raqamlangan tartib raqami
+            "code": code,
+            "name": COUNTRY_NAMES.get(code, code),
+            "price": price,
+        })
+        seq += 1
+    return rows
+
+
+PRICING = _parse_pricing(_RAW_PRICING)
+
+ENDPOINTS.append({
+    "id": "narxlar",
+    "group": "Ma'lumot",
+    "type": "pricing",
+    "title": "Narxlar",
+    "method": None,
+    "path": None,
+    "description": (
+        "\"Nomer olish\" so'rovidagi `country` parametri quyidagi ikki xonali "
+        "davlat kodlaridan biri bo'lishi shart. Har bir davlat uchun narx "
+        "so'mda (UZS) ko'rsatilgan — bu bitta SMS-qabul qiluvchi raqamning narxi."
+    ),
+    "pricing": PRICING,
 })
 
 
@@ -525,6 +824,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ---------------- Narxlar jadvalida qidiruv ----------------
+  const pricingSearch = document.getElementById("pricing-search");
+  if (pricingSearch) {
+    const rows = document.querySelectorAll(".pricing-row");
+    const emptyMsg = document.getElementById("pricing-empty");
+    pricingSearch.addEventListener("input", () => {
+      const q = pricingSearch.value.trim().toLowerCase();
+      let visible = 0;
+      rows.forEach((row) => {
+        const match = q.length === 0 || (row.dataset.label || "").includes(q);
+        row.classList.toggle("hidden", !match);
+        if (match) visible++;
+      });
+      if (emptyMsg) emptyMsg.classList.toggle("hidden", visible !== 0);
+    });
+  }
+
   const params = new URLSearchParams(location.search);
   const legacySection = params.get("section");
   if (legacySection) {
@@ -570,7 +886,7 @@ TEMPLATES = {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ brand }} — SIM API</title>
+<title>{{ brand }} — Virtual raqamlar va SMS-kod API</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { theme: { extend: { colors: { brand: {
@@ -591,11 +907,11 @@ TEMPLATES = {
       </div>
       <nav class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
         <a href="#features" class="hover:text-slate-900">Imkoniyatlar</a>
-        <a href="#" class="hover:text-slate-900">Narxlar</a>
-        <a href="/docs" class="hover:text-slate-900">Documentation</a>
+        <a href="/docs#narxlar" class="hover:text-slate-900">Narxlar</a>
+        <a href="/docs" class="hover:text-slate-900">Hujjatlar</a>
       </nav>
       <a href="/docs" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 text-white text-sm font-medium px-4 py-2 hover:bg-slate-700 transition">
-        API docs
+        API hujjatlari
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
       </a>
     </div>
@@ -612,12 +928,12 @@ TEMPLATES = {
           Virtual raqamlarni bir nechta<br> API chaqiruvi bilan oling
         </h1>
         <p class="mt-6 text-lg text-slate-600 leading-relaxed max-w-lg">
-          {{ brand }} — istalgan davlat uchun telefon raqamlarini sotib olish
+          {{ brand }} — istalgan davlat uchun vaqtinchalik telefon raqamlarini sotib olish
           va ularga kelgan SMS-kodlarni oddiy REST API orqali olish imkonini beradi.
         </p>
         <div class="mt-8 flex flex-wrap gap-3">
           <a href="/docs" class="rounded-lg bg-brand-600 text-white font-medium px-5 py-3 text-sm hover:bg-brand-700 transition shadow-sm shadow-brand-600/20">
-            DOCS Ko'rish
+            Hujjatlarni ko'rish
           </a>
           <a href="/docs#test" class="rounded-lg border border-slate-200 text-slate-700 font-medium px-5 py-3 text-sm hover:bg-slate-50 transition">
             Tezkor boshlash
@@ -681,7 +997,7 @@ response = requests.post(url, json=payload)
   <footer class="border-t border-slate-100 py-8">
     <div class="max-w-6xl mx-auto px-6 flex items-center justify-between text-sm text-slate-400">
       <span>© 2026 {{ brand }}. Barcha huquqlar himoyalangan.</span>
-      <a href="/docs" class="hover:text-slate-700">API DOCS →</a>
+      <a href="/docs" class="hover:text-slate-700">API hujjatlari →</a>
     </div>
   </footer>
 
@@ -693,7 +1009,7 @@ response = requests.post(url, json=payload)
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ brand }} API DOCS</title>
+<title>{{ brand }} API hujjatlari</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script>
   tailwind.config = { theme: { extend: { colors: { brand: {
@@ -713,7 +1029,7 @@ response = requests.post(url, json=payload)
           <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
             <span class="text-white font-bold text-xs">X</span>
           </div>
-          <span class="font-semibold tracking-tight">{{ brand }}</span>
+          <span class="font-semibold tracking-tight">{{ brand }} docs</span>
         </a>
       </div>
 
@@ -747,6 +1063,10 @@ response = requests.post(url, json=payload)
              class="nav-link group flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm mb-0.5 text-slate-600 hover:bg-slate-50 hover:text-slate-900">
             {% if ep.method %}
               <span class="method-tag method-{{ ep.method|lower }}">{{ ep.method }}</span>
+            {% elif ep.type == "pricing" %}
+              <span class="w-9 h-4 flex items-center justify-center text-brand-500 shrink-0">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L11 3.83V3H10.17L1 12.17V13l9.59 9.59a2 2 0 002.82 0l7.18-7.18a2 2 0 000-2.82z"/><circle cx="6.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+              </span>
             {% else %}
               <span class="w-9 h-4 flex items-center justify-center text-amber-500 shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
@@ -807,6 +1127,45 @@ response = requests.post(url, json=payload)
             </button>
           </div>
           <pre class="code-window-body"><code class="json-response-el">{{ ep.response | tojson(indent=2) }}</code></pre>
+        </div>
+
+        {% elif ep.type == "pricing" %}
+        <div class="flex items-center gap-3">
+          <span class="w-9 h-9 rounded-lg bg-brand-50 text-brand-600 flex items-center justify-center shrink-0">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L11 3.83V3H10.17L1 12.17V13l9.59 9.59a2 2 0 002.82 0l7.18-7.18a2 2 0 000-2.82z"/><circle cx="6.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+          </span>
+          <h1 class="text-3xl font-bold tracking-tight">{{ ep.title }}</h1>
+        </div>
+        <p class="mt-4 text-slate-600 leading-relaxed">{{ ep.description }}</p>
+
+        <div class="relative mt-6 max-w-sm">
+          <svg class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input id="pricing-search" type="text" placeholder="Davlat nomi yoki kodi bo'yicha qidirish..."
+            class="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400">
+        </div>
+
+        <div class="rounded-xl border border-slate-100 overflow-hidden mt-6">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50">
+              <tr>
+                <th class="text-left px-4 py-3 w-14">#</th>
+                <th class="text-left px-4 py-3">Davlat</th>
+                <th class="text-left px-4 py-3 w-24">Kod</th>
+                <th class="text-right px-4 py-3 w-36">Narxi (UZS)</th>
+              </tr>
+            </thead>
+            <tbody id="pricing-tbody" class="divide-y divide-slate-100">
+              {% for row in ep.pricing %}
+              <tr class="pricing-row" data-label="{{ row.name|lower }} {{ row.code|lower }}">
+                <td class="px-4 py-3 text-slate-400 font-mono text-[12.5px]">{{ row.no }}</td>
+                <td class="px-4 py-3 text-slate-700">{{ row.name }}</td>
+                <td class="px-4 py-3"><code class="text-[12.5px] font-mono font-semibold text-slate-800">{{ row.code }}</code></td>
+                <td class="px-4 py-3 text-right font-mono text-[13px] font-semibold text-slate-900">{{ "{:,}".format(row.price).replace(",", " ") }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p id="pricing-empty" class="hidden text-center text-sm text-slate-400 py-8">Hech narsa topilmadi</p>
         </div>
 
         {% else %}
@@ -927,6 +1286,9 @@ response = requests.post(url, json=payload)
               <li><a href="#xato-kodlari" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
                 <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
                 Xato kodlari</a></li>
+              <li><a href="#narxlar" class="footer-link flex items-center gap-2 hover:text-brand-600 transition">
+                <svg class="footer-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41L11 3.83V3H10.17L1 12.17V13l9.59 9.59a2 2 0 002.82 0l7.18-7.18a2 2 0 000-2.82z"/><circle cx="6.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+                Narxlar</a></li>
             </ul>
           </div>
 
@@ -984,7 +1346,6 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
-app.include_router(v1_router)
 
 
 @app.get("/", response_class=HTMLResponse)
