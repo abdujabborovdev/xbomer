@@ -33,6 +33,8 @@ async def test_endpoint(payload: TestRequest):
             return JSONResponse(status_code=401, content={"status":False,"error_code" : "INVALID_API_KEY",
                                                           "message" : "API kalit noto'g'ri yoki bloklangan"
                                                           })
+
+        return {"status": True, "message": "✅ API ishlamoqda"}
         
 
 
