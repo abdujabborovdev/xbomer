@@ -1,8 +1,7 @@
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Integer, BigInteger, DateTime, Column
-from data.config import *
+from sqlalchemy import BigInteger, Boolean, Column, Integer, String, create_engine
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
