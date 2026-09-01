@@ -47,7 +47,7 @@ class SecretApiKey(Base):
     user_telegram_id = Column(BigInteger, nullable=False)
     secret_api_key = Column(String(115), unique=True, nullable=False, index=True)
 
-engine = create_async_engine(DB_KEY)
+engine = create_async_engine(DATABASE_URL, echo=True)
 
 async_session = async_sessionmaker(
     engine, class_=AsyncSession, expire_on_commit=False

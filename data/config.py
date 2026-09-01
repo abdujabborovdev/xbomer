@@ -10,4 +10,4 @@ load_dotenv(ENV_PATH, override=True)
 BOT_TOKEN = (os.getenv("BOT_TOKEN") or "").strip().strip('"').strip("'")
 
 SEENSMS_KEY = os.getenv('SEENSMS_KEY')
-DB_KEY = os.getenv('DB_KEY')
+DATABASE_URL = os.getenv('DB_KEY')
