@@ -7,7 +7,6 @@ import aiohttp
 from sqlalchemy import select
 from starlette.responses import JSONResponse
 from db_xbomer import *
-from loader import *
 SEENSMS_KEY = SEENSMS_KEY
 
 router = APIRouter(prefix="/api/v1", tags=["v1"])
