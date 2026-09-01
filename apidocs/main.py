@@ -1,24 +1,3 @@
-"""
-XBOMER API — Custom Documentation Site (SINGLE FILE)
------------------------------------------------------
-Bitta faylda to'liq ishlaydigan FastAPI ilova: HTML, CSS va JS shu faylning
-o'zida (Jinja2 DictLoader orqali) saqlanadi — alohida templates/ yoki static/
-papka kerak emas.
-
-Routing:
-    "/"      -> Landing (xush kelibsiz) sahifa
-    "/docs"  -> Custom API hujjatlar sahifasi (shuningdek "/api" ham ishlaydi).
-                Bu BITTA uzluksiz sahifa: barcha bo'limlar (Test uchun, Balans,
-                Nomer olish, Kod olish, Xato kodlari) ketma-ket joylashgan va
-                sidebar'dagi havolalar shu bo'limlarga scroll qiladi (anchor).
-
-Ishga tushirish:
-    pip install fastapi uvicorn jinja2
-    uvicorn main:app --reload
-
-Keyin http://127.0.0.1:8000/ ni oching.
-"""
-
 import json
 from api.v1 import router as v1_router
 
