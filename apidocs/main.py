@@ -977,8 +977,8 @@ TEMPLATES = {
           <a href="/docs" class="rounded-lg bg-brand-600 text-white font-medium px-5 py-3 text-sm hover:bg-brand-700 transition shadow-sm shadow-brand-600/20">
             Hujjatlarni ko'rish
           </a>
-          <a href="/docs#test" class="rounded-lg border border-slate-200 text-slate-700 font-medium px-5 py-3 text-sm hover:bg-slate-50 transition">
-            Tezkor boshlash
+          <a href="/docs#narxlar" class="rounded-lg border border-slate-200 text-slate-700 font-medium px-5 py-3 text-sm hover:bg-slate-50 transition">
+            Narxlarni korish
           </a>
         </div>
         <div class="mt-8 flex items-center gap-6 text-sm text-slate-500">
