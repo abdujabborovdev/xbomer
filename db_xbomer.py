@@ -3,7 +3,6 @@ from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, Integer, BigInteger, DateTime, Column
 from data.config import *
-DB_KEY = DB_KEY
 
 class Base(AsyncAttrs, DeclarativeBase):
     pass
