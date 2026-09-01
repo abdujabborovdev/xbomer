@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse
 from jinja2 import Environment, DictLoader, select_autoescape
 from api.v1 import router as v1_router
 BRAND = "xbomer.uz"
-BASE_URL = "https://xbomer.uz/api/v1"
+BASE_URL = "https://xbomer.uz/api/v1/"
 
 LANGUAGES = [
     ("curl", "cURL"),
@@ -158,7 +158,7 @@ def build_code_samples(url: str, payload: dict) -> dict:
 # ============================================================================
 
 def _ep(id_, group, title, method, path, description, params, payload, response, error_status, error_body):
-    url = f"{BASE_URL.rsplit('/api/v1', 1)[0]}{path}" if path.startswith("/api") else BASE_URL
+    url = f"{BASE_URL.rsplit('/api/v1/', 1)[0]}{path}" if path.startswith("/api") else BASE_URL
     return {
         "id": id_,
         "group": group,
@@ -177,7 +177,7 @@ def _ep(id_, group, title, method, path, description, params, payload, response,
 
 ENDPOINTS = [
     _ep(
-        "test", "Endpointlar", "Test uchun", "POST", "/api/v1",
+        "test", "Endpointlar", "Test uchun", "POST", "/api/v1/",
         "API kalitingiz to'g'ri ishlayotganini tekshirish uchun oddiy so'rov. "
         "Faqat `key` parametrini yuborish kifoya — muvaffaqiyatli bo'lsa server "
         "tasdiqlovchi xabar bilan javob qaytaradi.",
@@ -190,7 +190,7 @@ ENDPOINTS = [
         {"status": False, "message": "API kalit noto'g'ri yoki bloklangan", "error_code": "INVALID_API_KEY"},
     ),
     _ep(
-        "balance", "Endpointlar", "Balans", "POST", "/api/v1/balance",
+        "balance", "Endpointlar", "Balans", "POST", "/api/v1/balance/",
         "Hisobingizdagi joriy balansni so'rash. `action` parametrini doim "
         "`\"balance\"` qiymati bilan yuboring.",
         [
@@ -203,7 +203,7 @@ ENDPOINTS = [
         {"status": False, "message": "API kalit noto'g'ri yoki bloklangan", "error_code": "INVALID_API_KEY"},
     ),
     _ep(
-        "nomer-olish", "Raqamlar", "Nomer olish", "POST", "/api/v1/accounts_get",
+        "nomer-olish", "Raqamlar", "Nomer olish", "POST", "/api/v1/accounts_get/",
         "Tanlangan davlat uchun SMS qabul qilishga tayyor yangi raqam "
         "sotib oladi. Qaytgan `id` qiymatini keyinchalik kodni olish uchun ishlating.",
         [
@@ -217,7 +217,7 @@ ENDPOINTS = [
         {"status": False, "message": "Hozircha bo'sh raqam yo'q", "error_code": "NUMBER_NOT_AVAILABLE"},
     ),
     _ep(
-        "kod-olish", "Raqamlar", "Kod olish", "POST", "/api/v1/accounts_code",
+        "kod-olish", "Raqamlar", "Kod olish", "POST", "/api/v1/accounts_code/",
         "Sotib olingan raqamga kelgan SMS-kodni qaytaradi. `order_id` sifatida "
         "\"Nomer olish\" so'rovidan qaytgan `id` qiymatini yuboring.",
         [
