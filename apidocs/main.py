@@ -1408,6 +1408,7 @@ app = FastAPI(
     redoc_url=None,
 )
 
+app.include_router(v1_router)
 
 @app.get("/", response_class=HTMLResponse)
 async def landing_page(request: Request):
