@@ -45,6 +45,7 @@ class SecretApiKey(Base):
     id = Column(Integer, primary_key=True)
     user_telegram_id = Column(BigInteger, nullable=False)
     secret_api_key = Column(String(115), unique=True, nullable=False, index=True)
+    is_blocked = Column(Boolean, default=False)
 
 engine = create_async_engine(DATABASE_URL, echo=True)
 
