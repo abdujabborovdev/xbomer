@@ -16,7 +16,7 @@ URL = 'https://seensms.uz/api/v1'
 class TestRequest(BaseModel):
     key: str
 
-
+@router.post("")
 @router.post("/")
 async def test_endpoint(payload: TestRequest):
     async with async_session() as session:
@@ -40,6 +40,7 @@ async def test_endpoint(payload: TestRequest):
 class BalanceRequest(BaseModel):
     key: str
     action: str
+@router.post("/balance")
 @router.post("/balance/")
 async def balance_endpoint(payload: BalanceRequest):
     async with async_session() as session:
@@ -78,7 +79,7 @@ class AccountsRequest(BaseModel):
     key: str
     action: str
     country: str
-
+@router.post("/accounts_get")
 @router.post("/accounts_get/")
 async def accounts_get(payload: AccountsRequest):
     async with async_session() as session:
@@ -163,6 +164,8 @@ class AccountsCodeRequest(BaseModel):
     key: str
     action: str
     order_id: int
+    
+@router.post("/accounts_code")
 @router.post("/accounts_code/")
 async def accounts_code(payload: AccountsCodeRequest):
     async with async_session() as session:
