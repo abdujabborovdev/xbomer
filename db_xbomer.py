@@ -2,6 +2,7 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncAttrs, async_sessionmaker, create_async_engine, AsyncSession
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import BigInteger, Boolean, Column, DateTime, Integer, String, create_engine
+from data.config import *
 class Base(AsyncAttrs, DeclarativeBase):
     pass
 
