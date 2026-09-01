@@ -19,21 +19,21 @@ class TestRequest(BaseModel):
 @router.post("/")
 async def test_endpoint(payload: TestRequest):
     async with async_session() as session:
-        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key))
-        secret_keys = result.scalars().first()
+        
         if not payload.key:
             return JSONResponse(status_code=400, content={"status":False,
                                                           "error_code": "MISSING_API_KEY",
                                                           "message": "API kaliti ('key') yuborilmadi"
                                                           })
+        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key,is_blocked=False))
+        secret_keys = result.scalars().first()
+        
         if not secret_keys:
             print(secret_keys)
             return JSONResponse(status_code=401, content={"status":False,"error_code" : "INVALID_API_KEY",
                                                           "message" : "API kalit noto'g'ri yoki bloklangan"
                                                           })
-        return {"status": True,
-  "message": "✅ API ishlamoqda"
-}
+        
 
 
 class BalanceRequest(BaseModel):
@@ -43,13 +43,14 @@ class BalanceRequest(BaseModel):
 @router.post("/balance/")
 async def balance_endpoint(payload: BalanceRequest):
     async with async_session() as session:
-        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key))
-        secret_keys = result.scalars().first()
+        
         if not payload.key:
             return JSONResponse(status_code=400, content={"status": False,
                                                           "error_code": "MISSING_API_KEY",
                                                           "message": "API kaliti ('key') yuborilmadi"
                                                           })
+        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key,is_blocked=False))
+        secret_keys = result.scalars().first()
 
         if not secret_keys:
             print(secret_keys)
@@ -82,13 +83,14 @@ class AccountsRequest(BaseModel):
 @router.post("/accounts_get/")
 async def accounts_get(payload: AccountsRequest):
     async with async_session() as session:
-        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key))
-        secret_keys = result.scalars().first()
+        
         if not payload.key:
             return JSONResponse(status_code=400, content={"status": False,
                                                           "error_code": "MISSING_API_KEY",
                                                           "message": "API kaliti ('key') yuborilmadi"
                                                           })
+        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key,is_blocked=False))
+        secret_keys = result.scalars().first()
 
         if not secret_keys:
             print(secret_keys)
@@ -168,13 +170,14 @@ class AccountsCodeRequest(BaseModel):
 @router.post("/accounts_code/")
 async def accounts_code(payload: AccountsCodeRequest):
     async with async_session() as session:
-        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key))
-        secret_keys = result.scalars().first()
+        
         if not payload.key:
             return JSONResponse(status_code=400, content={"status": False,
                                                           "error_code": "MISSING_API_KEY",
                                                           "message": "API kaliti ('key') yuborilmadi"
                                                           })
+        result = await session.execute(select(SecretApiKey).filter_by(secret_api_key=payload.key,is_blocked=False))
+        secret_keys = result.scalars().first()
         if not secret_keys:
             print(secret_keys)
             return JSONResponse(status_code=401, content={"status": False, "error_code": "INVALID_API_KEY",
