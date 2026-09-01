@@ -20,6 +20,7 @@ Keyin http://127.0.0.1:8000/ ni oching.
 """
 
 import json
+from api.v1 import router as v1_router
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
