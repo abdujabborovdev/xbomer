@@ -667,6 +667,12 @@ aside::-webkit-scrollbar-track { background: transparent; }
 
 /* Section anchor'lar sticky header ostida kesilib qolmasin */
 main section[id] { scroll-margin-top: 24px; }
+
+/* ---------- Mobil sidebar (drawer) ---------- */
+#sidebar.sidebar-open { transform: translateX(0); }
+@media (min-width: 768px) {
+  #sidebar { transform: none !important; }
+}
 """
 
 
@@ -871,6 +877,42 @@ document.addEventListener("DOMContentLoaded", () => {
     sections.forEach((s) => observer.observe(s));
     setActiveLink(sections[0].id);
   }
+
+  // ---------------- Mobil sidebar (drawer) ----------------
+  const sidebar = document.getElementById("sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  const menuBtn = document.getElementById("mobile-menu-btn");
+  const closeBtn = document.getElementById("sidebar-close-btn");
+
+  function openSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.add("sidebar-open");
+    if (backdrop) backdrop.classList.remove("hidden");
+    document.body.style.overflow = "hidden";
+  }
+
+  function closeSidebar() {
+    if (!sidebar) return;
+    sidebar.classList.remove("sidebar-open");
+    if (backdrop) backdrop.classList.add("hidden");
+    document.body.style.overflow = "";
+  }
+
+  if (menuBtn) menuBtn.addEventListener("click", openSidebar);
+  if (closeBtn) closeBtn.addEventListener("click", closeSidebar);
+  if (backdrop) backdrop.addEventListener("click", closeSidebar);
+
+  // Mobilda bo'lim havolasini bosganda drawer avtomatik yopiladi
+  document.querySelectorAll("#sidebar-nav .nav-link").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (window.innerWidth < 768) closeSidebar();
+    });
+  });
+
+  // Ekran kengaytirilsa (md va undan katta), drawer holatini tozalab qo'yamiz
+  window.addEventListener("resize", () => {
+    if (window.innerWidth >= 768) closeSidebar();
+  });
 });
 """
 
@@ -1020,17 +1062,36 @@ response = requests.post(url, json=payload)
 </head>
 <body class="bg-white text-slate-900 antialiased">
 
-  <div class="flex items-start">
+  <!-- ============ MOBIL TEPA PANEL (faqat kichik ekranlarda ko'rinadi) ============ -->
+  <div class="md:hidden sticky top-0 z-40 bg-white/90 backdrop-blur border-b border-slate-100 flex items-center gap-3 px-4 py-3">
+    <button id="mobile-menu-btn" class="p-1.5 -ml-1 text-slate-600" aria-label="Menyu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <div class="w-6 h-6 rounded-md bg-brand-600 flex items-center justify-center">
+      <span class="text-white font-bold text-[11px]">X</span>
+    </div>
+    <span class="font-semibold text-sm tracking-tight">{{ brand }} docs</span>
+  </div>
+
+  <!-- Mobilda sidebar ochilganda orqa fonni qorong'ilashtiruvchi qatlam -->
+  <div id="sidebar-backdrop" class="hidden md:hidden fixed inset-0 bg-black/30 z-40"></div>
+
+  <div class="md:flex md:items-start">
 
     <!-- ============ SIDEBAR ============ -->
-    <aside class="w-72 shrink-0 border-r border-slate-100 flex flex-col self-start sticky top-0 max-h-screen overflow-y-auto">
-      <div class="px-5 py-4 border-b border-slate-100 flex items-center gap-2">
+    <aside id="sidebar"
+      class="fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] bg-white border-r border-slate-100 flex flex-col overflow-y-auto -translate-x-full transition-transform duration-200 ease-out
+             md:translate-x-0 md:static md:z-auto md:max-w-none md:self-start md:sticky md:top-0 md:max-h-screen">
+      <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between gap-2">
         <a href="/" class="flex items-center gap-2">
           <div class="w-7 h-7 rounded-lg bg-brand-600 flex items-center justify-center">
             <span class="text-white font-bold text-xs">X</span>
           </div>
           <span class="font-semibold tracking-tight">{{ brand }} docs</span>
         </a>
+        <button id="sidebar-close-btn" class="md:hidden p-1 text-slate-400" aria-label="Yopish">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
       </div>
 
       <div class="px-4 pt-4">
@@ -1082,7 +1143,7 @@ response = requests.post(url, json=payload)
     <main class="flex-1 min-w-0">
 
       {% for ep in endpoints %}
-      <section id="{{ ep.id }}" class="max-w-4xl mx-auto px-10 py-12 {% if not loop.first %}border-t border-slate-100{% endif %}">
+      <section id="{{ ep.id }}" class="max-w-4xl mx-auto px-5 sm:px-10 py-10 sm:py-12 {% if not loop.first %}border-t border-slate-100{% endif %}">
 
         <div class="text-xs font-medium text-brand-600 uppercase tracking-wide mb-2">{{ ep.group }}</div>
 
